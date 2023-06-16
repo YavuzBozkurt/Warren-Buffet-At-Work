@@ -2,11 +2,29 @@ import numpy as np
 
 
 class General:
+    """
+    this is a class for general purpose method implementations
+    to solve problems. Create an instance of this class to use
+    the methods.
+    """
 
     def __init__(self) -> None:
+        """
+        this is the empty constructor of the class,
+        nothing to fetch
+        """
         pass
 
     def binomt(self, numP, u, d, S0):
+        """
+        this is the method to construct a binomial 
+        lattice tree, as parameter, it gets
+        `self` instance itself
+        `numP` number of periods in the model
+        `u` up factor of the tree
+        `d` down factor of the tre
+        `S0` initial stock price
+        """
         # inititalize the tree
         whole = [
             [S0]
@@ -39,12 +57,29 @@ class General:
         return whole
 
     def bindomrender(self, arr):
+        """
+        this is the method to render a computed
+        binomial lattice tree for visualization
+        sake, as parameter, it gets
+        `self` instance itself
+        `arr` the binomial lattice tree
+        """
         print('-----binom-lattice-----')
         for now in arr:
+            # display per row in seperate line
             print(now)
 
     def backtr(self, arr, pos, rec, p):
-
+        """
+        this is the backtracking method to compute
+        the expected price of a stock, as parameter,
+        it gets
+        `self` instance itself
+        `arr` binomial lattice tree
+        `pos` an index to select candidates with
+        `rec` an array  to store all results and paths
+        `p` probability of having up factor in the stock
+        """
         # Base case
         if pos == len(arr) - 1:
             # add a copy of the path
@@ -68,18 +103,55 @@ class General:
         return rec
 
     def option(self, arr, K, type, u, d, r, t):
+        """
+        this is the method to compute option (call / put) prices
+        as parameter, it gets
+        `self` instance itself
+        `arr` the binomial lattice tree
+        `K` strike price of the option
+        `type` the type of the option (call ~ c, put ~ p)
+        `u` up factor of the tree
+        `d` down factor of the tree
+        `r` risk free interest rate 
+        `t` Δt 
+        returns `buffer`, which is the last layer
+        of the expected discounted option payoffs
+        """
 
         def payoffs():
+            """
+            this is the method that computes the expected
+            non-discounted option payoffs, so full option
+            payoffs
+            """
+
+            # get the final stock prices of different
+            # paths
             now = arr[-1]
 
             def func_put(S):
+                """
+                auxiliary
+                this is the payoff for a put option
+                as parameter, it gets
+                `S` final stock price
+                """
                 return max(K - S, 0)
 
             def func_call(S):
+                """
+                auxiliary
+                this is the payoff for a cal option
+                as parameter, it gets
+                `S` final stock price
+                """
                 return max(S - K, 0)
 
+            # select the appropriate payoff function
+            # considering the type of the option
             func = func_call if type == 'c' else func_put
 
+            # set buffer where payoffs are to be stored
             buffer = []
             for s in now:
                 buffer.append(
@@ -87,30 +159,64 @@ class General:
                 )
             return buffer
 
-        def backprop(cp_tree, u, d, R):
+        def backprop(cp_tree, l, u, d, R):
+            """
+            this is a method that implements the
+            backpropogating / backword recursing
+            for option price computation,
+            as parameter, it gets
+            `cp_tree` the option binomial lattice tree
+            `l` an index to track layers of the binomial 
+            lattic tree
+            `u` up factor of the tree
+            `d` down factor of the tree
+            `R` discount factor (continuous compounding)
+            """
+            # Base case
+            if len(cp_tree[l]) == 1:
+                # forward the current cp_tree
+                # to the ancestor call
+                return cp_tree
 
-            if len(cp_tree) == 1:
-                return
-
+            # set fresh empty list where new option prices
+            # will be stored
             lst = []
-            now = cp_tree[-1]
-            for i in range(len(now) - 1, 2):
+            # get the last layer of option binomial lattice
+            now = cp_tree[l]
+            for i in range(0, len(now) - 1, 2):
                 lst.append(
+                    # apply the recursive formula to compute the
+                    # new discounted expected payoff
                     R**-1 * ((R - d) / (u - d) *
                              now[i] + (u - R) / (u - d) * now[i + 1])
                 )
-                cp_tree[-2] = lst
-                backprop(cp_tree[:-1], u, d, R)
-                return cp_tree
+            # fetch the newly computed layer to the previous layer
+            # of the binomial tree
+            cp_tree[l-1] = lst
+            # do backpropogation
+            cp_tree = backprop(cp_tree, l-1, u, d, R)
+            # return the whole option binomial lattice tree
+            return cp_tree
 
+        # initialize the option binomial lattice tree
         cp_tree = []
+        # get all layers except the last one
         for a in arr[:-1]:
             layer = []
+            # add the layer to the option tree
             cp_tree.append(layer)
+            # per element in the stock binomial lattice
+            # tree, add a None to the new layer
+            # (None representing a node with no value)
             for e in a:
                 layer.append(None)
+        # add the payoff layer to the end
         cp_tree.append(
             payoffs()
         )
+        # compute the yearly discount
         R = np.e**(r*t)
-        backprop(cp_tree, u, d, R)
+        # start backpropogation
+        cp_tree = backprop(cp_tree, len(cp_tree)-1,  u, d, R)
+        # return the result of backpropogation
+        return cp_tree
