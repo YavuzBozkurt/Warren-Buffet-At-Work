@@ -102,20 +102,18 @@ class General:
         # return all paths and probabilties
         return rec
 
-    def option(self, arr, K, type, u, d, r, t):
+    def option(self, arr, K, typ: str, u, d, r, t):
         """
         this is the method to compute option (call / put) prices
         as parameter, it gets
         `self` instance itself
         `arr` the binomial lattice tree
         `K` strike price of the option
-        `type` the type of the option (call ~ c, put ~ p)
+        `typ` the type of the option (call ~ c, put ~ p)
         `u` up factor of the tree
         `d` down factor of the tree
         `r` risk free interest rate 
         `t` Δt 
-        returns `buffer`, which is the last layer
-        of the expected discounted option payoffs
         """
 
         def payoffs():
@@ -124,38 +122,15 @@ class General:
             non-discounted option payoffs, so full option
             payoffs
             """
-
-            # get the final stock prices of different
-            # paths
+            # get the final stock prices
             now = arr[-1]
-
-            def func_put(S):
-                """
-                auxiliary
-                this is the payoff for a put option
-                as parameter, it gets
-                `S` final stock price
-                """
-                return max(K - S, 0)
-
-            def func_call(S):
-                """
-                auxiliary
-                this is the payoff for a cal option
-                as parameter, it gets
-                `S` final stock price
-                """
-                return max(S - K, 0)
-
             # select the appropriate payoff function
-            # considering the type of the option
-            func = func_call if type == 'c' else func_put
-
+            func = self.func_call if typ == 'c' else self.func_put
             # set buffer where payoffs are to be stored
             buffer = []
             for s in now:
                 buffer.append(
-                    func(s)
+                    func(s, K)
                 )
             return buffer
 
@@ -198,6 +173,8 @@ class General:
             # return the whole option binomial lattice tree
             return cp_tree
 
+        typ = typ.lower()
+        assert typ == 'c' or typ == 'p'
         # initialize the option binomial lattice tree
         cp_tree = []
         # get all layers except the last one
@@ -220,3 +197,43 @@ class General:
         cp_tree = backprop(cp_tree, len(cp_tree)-1,  u, d, R)
         # return the result of backpropogation
         return cp_tree
+
+    def america_option(self, arr, cp_tree, typ, K):
+        """
+        this is a method that computes the price of a
+        american option
+        as parameter it gets
+        `self` instance itself
+        `arr` binomial tree for stock prices
+        `cp_tree` binomial tree for a european option prices
+        `typ` type of the option (call ~ c, put ~ p)
+        `K` the strike price of the option
+        """
+        acp_tree = []
+        func = self.func_call if typ == 'c' else self.func_put
+        for i in range(len(cp_tree)):
+            new = []
+            acp_tree.append(new)
+            for j in range(len(cp_tree[i])):
+                new.append(
+                    (func(arr[i][j], K), cp_tree[i][j])
+                )
+        return acp_tree
+
+    def func_put(self, S, K):
+        """
+        auxiliary
+        this is the payoff for a put option
+        as parameter, it gets
+        `S` stock price
+        """
+        return max(K - S, 0)
+
+    def func_call(self, S, K):
+        """
+        auxiliary
+        this is the payoff for a call option
+        as parameter, it gets
+        `S` stock price
+        """
+        return max(S - K, 0)
